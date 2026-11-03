@@ -1,6 +1,9 @@
 {
   "name": "Midea Humidifier Card",
   "image": "mcr.microsoft.com/devcontainers/base:debian",
+  "containerEnv": {
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  },
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.14"
