@@ -1,7 +1,8 @@
-import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
+import { css, html, LitElement, nothing, PropertyValues, svg, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators";
 
-const ARC = "M 49.289 190.711 A 100 100 0 1 1 190.711 190.711";
+const RADIUS = 145;
+const ARC = "M 57.47 262.53 A 145 145 0 1 1 262.53 262.53";
 
 @customElement("midea-humidity-slider")
 export class MideaHumiditySlider extends LitElement {
@@ -11,6 +12,10 @@ export class MideaHumiditySlider extends LitElement {
   @property({ type: Number }) public value = 0;
   @property({ type: Boolean, reflect: true }) public disabled = false;
   @property() public label = "";
+  @property({ type: Number }) public current?: number;
+  @property() public mode: "start" | "end" = "start";
+  @property() public decreaseLabel = "Decrease humidity";
+  @property() public increaseLabel = "Increase humidity";
 
   @state() private _dragValue?: number;
 
@@ -112,6 +117,24 @@ export class MideaHumiditySlider extends LitElement {
     this._emit("value-changed", value);
   }
 
+  private _adjust(amount: number): void {
+    if (!this._interactive || this._pointerId !== undefined) {
+      return;
+    }
+    const value = this._snap(this.value + amount);
+    if (value !== this.value) {
+      this._commit(value);
+    }
+  }
+
+  private _decrease(): void {
+    this._adjust(-this.step);
+  }
+
+  private _increase(): void {
+    this._adjust(this.step);
+  }
+
   private _keyDown(event: KeyboardEvent): void {
     if (!this._interactive || this._pointerId !== undefined) {
       return;
@@ -161,14 +184,22 @@ export class MideaHumiditySlider extends LitElement {
 
   protected render(): TemplateResult {
     const value = this._bound(this._dragValue ?? this.value);
-    const fraction = this.max > this.min ? (value - this.min) / (this.max - this.min) : 0;
+    const fraction = this._fraction(value);
     const angle = (135 + fraction * 270) * Math.PI / 180;
-    const x = 120 + 100 * Math.cos(angle);
-    const y = 120 + 100 * Math.sin(angle);
-    const length = fraction * 100;
+    const x = 160 + RADIUS * Math.cos(angle);
+    const y = 160 + RADIUS * Math.sin(angle);
+    const current = this.current != null && Number.isFinite(this.current)
+      ? this.current : undefined;
+    const currentFraction = this._fraction(current ?? (this.mode === "end" ? this.max : this.min));
+    const start = this.mode === "end" ? fraction : 0;
+    const end = this.mode === "end" ? 1 : fraction;
+    const activeStart = this.mode === "end" ? fraction : currentFraction;
+    const activeEnd = this.mode === "end" ? currentFraction : fraction;
+    const currentOnArc = current !== undefined && current >= this.min && current <= this.max;
+    const currentAngle = (135 + currentFraction * 270) * Math.PI / 180;
 
     return html`
-      <svg viewBox="0 0 240 240" role="slider"
+      <svg viewBox="0 0 320 320" role="slider"
         tabindex=${this._interactive ? "0" : "-1"}
         aria-label=${this.label}
         aria-valuemin=${this.min}
@@ -183,23 +214,57 @@ export class MideaHumiditySlider extends LitElement {
         @pointercancel=${this._pointerCancel}
         @lostpointercapture=${this._pointerCancel}>
         <path class="track" d=${ARC} />
-        <path class="active" d=${ARC} pathLength="100"
-          stroke-dasharray=${`${length} 100`}
-          visibility=${length === 0 ? "hidden" : "visible"} />
+        ${this._segment("arc-base", start, end)}
+        ${this._segment("tinted", start, end)}
+        ${this._segment("active", activeStart, activeEnd)}
+        ${currentOnArc ? svg`
+          <circle class=${currentFraction >= start && currentFraction <= end && !this.disabled
+            ? "current on-color" : "current"}
+            cx=${160 + RADIUS * Math.cos(currentAngle)}
+            cy=${160 + RADIUS * Math.sin(currentAngle)} r="4" />
+        ` : nothing}
         <path class="hit-area" d=${ARC} />
-        <circle class="thumb" cx=${x} cy=${y} r="10" />
+        <circle class="thumb" cx=${x} cy=${y} r="10.5" />
       </svg>
+      <div class="buttons">
+        <button type="button" class="decrease" aria-label=${this.decreaseLabel}
+          title=${this.decreaseLabel}
+          ?disabled=${!this._interactive || value <= this.min}
+          @click=${this._decrease}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14v2H5z" /></svg>
+        </button>
+        <button type="button" class="increase" aria-label=${this.increaseLabel}
+          title=${this.increaseLabel}
+          ?disabled=${!this._interactive || value >= this.max}
+          @click=${this._increase}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" /></svg>
+        </button>
+      </div>
     `;
+  }
+
+  private _fraction(value: number): number {
+    return this.max > this.min ? (this._bound(value) - this.min) / (this.max - this.min) : 0;
+  }
+
+  private _segment(name: string, start: number, end: number): TemplateResult {
+    const length = Math.max(0, end - start) * 100;
+    return svg`<path class=${name} d=${ARC} pathLength="100"
+      stroke-dasharray=${`${length} 100`}
+      stroke-dashoffset=${start === 0 ? 0 : -start * 100}
+      visibility=${length === 0 || this.disabled ? "hidden" : "visible"} />`;
   }
 
   static styles = css`
     :host {
       display: block;
       width: 100%;
+      position: relative;
+      container-type: inline-size;
       --midea-slider-color: var(--primary-color, #03a9f4);
-      --midea-slider-track-color: var(--divider-color, #bdbdbd);
+      --midea-slider-track-color: var(--disabled-color, #bdbdbd);
     }
-    svg {
+    :host > svg {
       display: block;
       width: 100%;
       overflow: visible;
@@ -207,20 +272,28 @@ export class MideaHumiditySlider extends LitElement {
       pointer-events: none;
       touch-action: none;
     }
-    path {
+    :host > svg path {
       fill: none;
-      stroke-width: 14;
+      stroke-width: 24;
       stroke-linecap: round;
     }
     .track {
       stroke: var(--midea-slider-track-color);
+      opacity: 0.3;
+    }
+    .tinted {
+      stroke: var(--midea-slider-color);
+      opacity: 0.5;
+    }
+    .arc-base {
+      stroke: var(--clear-background-color, var(--card-background-color, white));
     }
     .active {
       stroke: var(--midea-slider-color);
     }
-    .hit-area {
+    :host > svg .hit-area {
       stroke: transparent;
-      stroke-width: 36;
+      stroke-width: 48;
     }
     .hit-area, .thumb {
       pointer-events: auto;
@@ -228,22 +301,76 @@ export class MideaHumiditySlider extends LitElement {
       cursor: pointer;
     }
     .thumb {
-      fill: var(--midea-slider-color);
-      stroke: var(--card-background-color, white);
+      fill: white;
+      stroke: var(--midea-slider-color);
       stroke-width: 3;
+    }
+    .current {
+      fill: var(--primary-text-color, #212121);
+      opacity: 0.5;
+    }
+    .current.on-color {
+      fill: var(--clear-background-color, white);
     }
     svg:focus-visible .thumb {
       stroke: var(--primary-text-color, #212121);
       stroke-width: 4;
     }
-    :host([disabled]) .active {
-      stroke: var(--disabled-text-color, #9e9e9e);
-    }
-    :host([disabled]) .thumb {
-      fill: var(--disabled-text-color, #9e9e9e);
-    }
     :host([disabled]) .hit-area, :host([disabled]) .thumb {
       cursor: default;
+    }
+    .buttons {
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      direction: ltr;
+      pointer-events: none;
+    }
+    button {
+      width: 48px;
+      height: 48px;
+      padding: 11px;
+      box-sizing: border-box;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      color: var(--secondary-text-color, #727272);
+      background: transparent;
+      cursor: pointer;
+      pointer-events: auto;
+      display: grid;
+      place-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+    button:enabled:hover {
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+    }
+    button:enabled:active {
+      background: var(--divider-color, rgba(127, 127, 127, 0.24));
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 3px;
+    }
+    button:disabled {
+      color: var(--disabled-text-color, #9e9e9e);
+      opacity: 0.5;
+      cursor: default;
+    }
+    @container (max-width: 249px) {
+      .buttons {
+        position: static;
+        margin-top: 8px;
+        padding-bottom: 10px;
+      }
     }
   `;
 }

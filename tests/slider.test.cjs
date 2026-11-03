@@ -37,6 +37,7 @@ function setup() {
       html: template,
       svg: template,
       css: template,
+      nothing: undefined,
     },
     "lit/decorators": {
       customElement: (name) => (element) => { registry.set(name, element); },
@@ -131,6 +132,7 @@ test("binds the bundled slider with entity limits, five-percent steps and access
   assert.equal(binding(slider, ".max"), 85);
   assert.equal(binding(slider, ".step"), 5);
   assert.equal(binding(slider, ".disabled"), false);
+  assert.equal(binding(slider, ".mode"), "end");
   assert.equal(binding(slider, ".label"), "Demo");
   assert.equal(findTemplate(card.render(), "<round-slider"), undefined);
 });
@@ -149,6 +151,7 @@ test("preserves disabled states and default humidity limits", () => {
   assert.equal(binding(slider, ".value"), 0);
   assert.equal(binding(slider, ".min"), 0);
   assert.equal(binding(slider, ".max"), 100);
+  assert.equal(binding(slider, ".mode"), "start");
   entity.attributes.humidity = NaN;
   assert.equal(binding(findTemplate(card.render(), "<midea-humidity-slider"), ".value"), 0);
 });
@@ -219,16 +222,108 @@ function pointer(slider, fraction, overrides = {}) {
   };
 }
 
-test("the colored arc grows from the left minimum toward the handle", () => {
+function segment(slider, name) {
+  return slider.render().values.find((value) =>
+    value?.strings && value.strings.join("").includes("stroke-dasharray") &&
+    binding(value, "class") === name);
+}
+
+test("native arc direction and split colors reflect target and current humidity", () => {
   const { slider } = setup();
   slider.min = 35; slider.max = 85;
+  slider.current = 65;
+  slider.mode = "end";
+  slider.value = 50;
+  assert.equal(binding(segment(slider, "tinted"), "stroke-dasharray"), "70 100");
+  assert.equal(binding(segment(slider, "tinted"), "stroke-dashoffset"), -30);
+  assert.equal(binding(segment(slider, "active"), "stroke-dasharray"), "30 100");
+  assert.equal(binding(segment(slider, "active"), "stroke-dashoffset"), -30);
+  slider.current = 40;
+  assert.equal(binding(segment(slider, "active"), "visibility"), "hidden");
+  slider.current = undefined;
+  assert.equal(binding(segment(slider, "active"), "stroke-dasharray"), "70 100");
+  slider.mode = "start";
+  slider.current = 35;
   for (const [value, length] of [[35, 0], [50, 30], [60, 50], [85, 100]]) {
     slider.value = value;
-    const rendered = slider.render();
+    const rendered = segment(slider, "tinted");
     assert.equal(binding(rendered, "stroke-dasharray"), `${length} 100`);
     assert.equal(binding(rendered, "visibility"), length === 0 ? "hidden" : "visible");
-    assert.doesNotMatch(rendered.strings.join(""), /stroke-dashoffset/);
+    assert.equal(binding(rendered, "stroke-dashoffset"), 0);
   }
+});
+
+test("current indicator only appears for finite sensor values within the arc range", () => {
+  const { slider } = setup();
+  slider.min = 35; slider.max = 85; slider.value = 50;
+  for (const current of [35, 61, 85]) {
+    slider.current = current;
+    assert.ok(findTemplate(slider.render(), 'r="4"'));
+  }
+  for (const current of [undefined, NaN, Infinity, 20, 90]) {
+    slider.current = current;
+    assert.equal(findTemplate(slider.render(), 'r="4"'), undefined);
+  }
+  slider.min = 0;
+  slider.current = 0;
+  assert.ok(findTemplate(slider.render(), 'r="4"'));
+});
+
+test("plus/minus buttons commit bounded five-percent steps without duplicate calls", () => {
+  const { slider, card, calls } = setup();
+  slider.min = 35; slider.max = 85; slider.value = 50;
+  slider.addEventListener("value-changed", (event) => card._setTargetHumidity(event));
+  binding(slider.render(), "@click").call(slider);
+  assert.equal(slider.value, 45);
+  slider._increase();
+  assert.equal(slider.value, 50);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][2].humidity, 45);
+  assert.equal(calls[1][2].humidity, 50);
+  slider.value = 85;
+  slider._increase();
+  assert.equal(calls.length, 2);
+  slider.value = 35;
+  slider._decrease();
+  assert.equal(calls.length, 2);
+  slider.disabled = true;
+  slider._increase();
+  assert.equal(slider.value, 35);
+  assert.equal(binding(slider.render(), "?disabled"), true);
+  slider.disabled = false;
+  slider._pointerDown(pointer(slider, 0.5));
+  slider._increase();
+  assert.equal(slider.value, 35);
+});
+
+test("current sensor updates reach the dial and unavailable readings remove the marker", () => {
+  const { card } = setup();
+  card.willUpdate(new Map([["hass", undefined]]));
+  assert.equal(binding(findTemplate(card.render(), "<midea-humidity-slider"), ".current"), 61);
+  const oldHass = card.hass;
+  card.hass = { ...oldHass, states: {
+    ...oldHass.states, "sensor.humidity": { state: "unavailable", attributes: {} },
+  }};
+  card.willUpdate(new Map([["hass", oldHass]]));
+  assert.equal(binding(findTemplate(card.render(), "<midea-humidity-slider"), ".current"), undefined);
+});
+
+test("outlined mode, fan and power buttons keep their service bindings and pressed state", () => {
+  const { card, calls } = setup();
+  const mode = card._renderIcon("smart", "smart", false);
+  assert.equal(binding(mode, "aria-pressed"), true);
+  assert.match(mode.strings.join(""), /<button type="button"/);
+  binding(mode, "@click").call(card, { currentTarget: { mode: "smart" } });
+  const fan = card._renderFanIcon("low", "low", false);
+  assert.equal(binding(fan, "aria-pressed"), true);
+  binding(fan, "@click").call(card, { currentTarget: { mode: "low" } });
+  const power = card._renderPowerIcon("off", "on");
+  binding(power, "@click").call(card, { currentTarget: { status: "off" } });
+  assert.equal(calls[0][1], "set_mode");
+  assert.equal(calls[0][2].mode, "smart");
+  assert.equal(calls[1][1], "set_preset_mode");
+  assert.equal(calls[1][2].preset_mode, "low");
+  assert.equal(calls[2][1], "turn_off");
 });
 
 test("pointer geometry clamps and snaps values within the entity's range", () => {

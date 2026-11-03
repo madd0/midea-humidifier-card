@@ -82,8 +82,17 @@ lazy-loaded controls, or a separate slider resource. Mouse, touch, pen, and keyb
 input are supported (arrow keys, Page Up/Down, Home/End). The dial does not intercept
 mouse-wheel scrolling. Existing configuration, five-percent steps, and the disabled
 dial when the appliance is off or unavailable are unchanged.
-The colored arc fills from the left-hand minimum toward the handle for both
-humidifiers and dehumidifiers.
+The dial follows the native humidifier control's appearance: a white target
+handle, a dot for the measured humidity, and tinted/solid arc segments showing
+the target and the gap to the current reading. Humidifiers fill from the left;
+dehumidifiers fill from the right, matching Home Assistant's device-class behavior.
+An unavailable or out-of-range humidity sensor has no dot.
+
+Outlined minus/plus buttons in the arc's bottom opening adjust the target by five
+percentage points and stop at the entity's limits. Mode, fan, ion, and power
+buttons use matching outlined styles. All controls remain bundled with the card.
+On narrow cards, minus/plus move below the arc so their touch targets do not overlap
+the dial or its labels.
 
 Mode colors accept both lowercase and title-case mode names. They follow theme
 colors with built-in fallbacks; older overrides such as
