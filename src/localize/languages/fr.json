@@ -7,6 +7,8 @@
     "defrosting": "Attention : Dégivrage en cours...",
     "tank": "Réservoir",
     "filter": "Filtre",
-    "defrost": "Dégivrage"
+    "defrost": "Dégivrage",
+    "humidity_down": "Diminuer l'humidité",
+    "humidity_up": "Augmenter l'humidité"
   }
 }

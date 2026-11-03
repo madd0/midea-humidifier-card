@@ -7,6 +7,8 @@
     "defrosting": "Caution : Please wait, currently defrosting...",
     "tank": "Tank",
     "filter": "Filter",
-    "defrost": "Defrost"
+    "defrost": "Defrost",
+    "humidity_down": "Decrease humidity",
+    "humidity_up": "Increase humidity"
   }
 }
