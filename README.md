@@ -112,6 +112,51 @@ swap_target_and_current_humidity: true
 | show_ion_toggle                  | boolean | **Optional** | Display the ion switch toggle icon.         | true                 |
 | swap_target_and_current_humidity | boolean | **Optional** | Swap current and target humidity display    | true                 |
 
+## Development with GitHub Codespaces
+
+1. On GitHub, select **Code > Codespaces > Create codespace on master** (or the
+   branch you are developing). Wait for the container setup to finish installing
+   the card dependencies and Home Assistant.
+2. In VS Code, select **Terminal > Run Task > Start Home Assistant**. This starts
+   the **Watch card** task, waits for its first build, then starts Home Assistant.
+3. Open the **Ports** tab and open the forwarded **Home Assistant** port **8123**
+   in your browser. Keep its visibility **Private**.
+4. On the first run, create a local Home Assistant user and finish onboarding.
+   The default **Overview** dashboard shows the custom card with simulated Midea
+   entities. No physical device, Midea integration or cloud account is required.
+
+The demo supports power, operating modes, target humidity, fan presets and ion
+mode. Temperature and current humidity are fixed sample readings; the warning
+sensors start clear. This is a development fixture, not a device simulator.
+
+Edit files in `src/`, wait for **Watch card** to rebuild, then refresh Home
+Assistant. Use a hard refresh if the browser cached the JavaScript. The card is
+served at `/local/midea-humidifier-card.js` through Home Assistant itself, so no
+second forwarded port, localhost URL or cross-origin configuration is needed.
+The existing standalone Rollup server is still available on port 5000 when
+running `npm start`, but is not used by the demo dashboard.
+
+Home Assistant is pinned in `.devcontainer/requirements.txt` and runs with Python
+3.14; the card uses Node.js 22 and the checked-in Yarn lockfile. The same setup
+works locally with VS Code's **Dev Containers: Reopen in Container** command.
+After changing the container or requirements, rebuild the container.
+
+The tracked `.devcontainer/configuration.yaml` and
+`.devcontainer/ui-lovelace.yaml` files are copied into the ignored
+`.devcontainer/homeassistant/` runtime directory on each start. Edit the tracked
+files to customize the demo. Home Assistant's local user, onboarding state and
+other runtime data persist there across task restarts; they are not committed.
+The development-only integration lives in `.devcontainer/custom_components/`
+and is never included in the published card bundle.
+
+Use **Terminal > Terminate Task** to stop **Start Home Assistant** and
+**Watch card** when finished. To check the Home Assistant configuration without
+starting the server, run `bash .devcontainer/develop.sh --script check_config`
+inside the container.
+
+To exercise all demo entity references and the card's service calls, run
+`.venv/bin/python .devcontainer/test_demo.py` inside the container.
+
 ## Screenshots
 
 ![Screenshot #1](<https://github.com/sicknesz/midea-inventor-card/blob/master/docs/Screenshot_1.png?raw=true>)

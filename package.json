@@ -14,6 +14,7 @@
   "repository": "git@github.com:sicknesz/midea-dehumidifier-card.git",
   "author": "Sylain Roccaserra (sicknesz) <roccaserra.sylvain@gmail.com>",
   "license": "MIT",
+  "packageManager": "yarn@1.22.22",
   "dependencies": {
     "@mdi/js": "^6.5.95",
     "@thomasloven/round-slider": "^0.5.4",
@@ -46,7 +47,7 @@
     "typescript": "^4.4.3"
   },
   "scripts": {
-    "start": "rollup -c rollup.config.dev.js --watch",
+    "start": "rollup -c --watch",
     "build": "npm run lint && npm run rollup",
     "lint": "eslint src/*.ts",
     "rollup": "rollup -c"

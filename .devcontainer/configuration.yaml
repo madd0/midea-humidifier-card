@@ -1,4 +1,22 @@
-default_config:
+homeassistant:
+  name: Midea Card Development
+  latitude: 0
+  longitude: 0
+  elevation: 0
+  unit_system: metric
+  time_zone: Etc/UTC
+  country: US
+
+frontend:
+config:
+http:
+  server_host: 0.0.0.0
+  server_port: 8123
+
 lovelace:
   mode: yaml
-demo:
+  resources:
+    - url: /local/midea-humidifier-card.js
+      type: module
+
+midea_card_demo:

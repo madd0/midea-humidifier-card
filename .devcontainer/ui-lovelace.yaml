@@ -1,9 +1,35 @@
-resources:
-  - url: http://127.0.0.1:5000/boilerplate-card.js
-    type: module
+title: Midea Card Development
 views:
-  - cards:
-      - type: custom:boilerplate-card
-        name: Boilerplate Card Development
-        entity: sun.sun
-        test_gui: true
+  - title: Demo
+    path: demo
+    cards:
+      - type: custom:midea-humidifier-card
+        name: Demo Midea Dehumidifier
+        entity: humidifier.dehumidifier_demo
+        fan_entity: fan.dehumidifier_demo_fan
+        humidity_entity: sensor.dehumidifier_demo_humidity
+        temperature_entity: sensor.dehumidifier_demo_temperature
+        tank_entity: binary_sensor.dehumidifier_demo_tank_full
+        filter_entity: binary_sensor.dehumidifier_demo_replace_filter
+        defrost_entity: binary_sensor.dehumidifier_demo_defrosting
+        ion_entity: switch.dehumidifier_demo_ion_mode
+        show_ion_toggle: true
+        swap_target_and_current_humidity: true
+      - type: markdown
+        content: |
+          ## Card development
+          These are simulated entities; no Midea device or cloud account is needed.
+          Try the power, mode, fan, ion and target humidity controls.
+          Save changes in `src/`, wait for the **Watch card** task to rebuild,
+          then refresh this page (hard refresh if the browser cached the card).
+      - type: entities
+        title: Demo entities
+        entities:
+          - humidifier.dehumidifier_demo
+          - fan.dehumidifier_demo_fan
+          - sensor.dehumidifier_demo_humidity
+          - sensor.dehumidifier_demo_temperature
+          - switch.dehumidifier_demo_ion_mode
+          - binary_sensor.dehumidifier_demo_tank_full
+          - binary_sensor.dehumidifier_demo_replace_filter
+          - binary_sensor.dehumidifier_demo_defrosting
