@@ -74,6 +74,21 @@ Else, if you prefer the graphical editor, use the menu to add the resource:
 Click to add an element to your lovelace view, select the midea-humidifier-card, it will open the visual card editor
 but everything should be autoconfigured properly unless you have more than one humidifier, in that case just manually click and set all fields in the editor.
 
+### Home Assistant compatibility
+
+The card bundles its own `midea-humidity-slider`, built with Lit, SVG, and standard
+pointer events. It does not depend on Home Assistant's internal slider elements,
+lazy-loaded controls, or a separate slider resource. Mouse, touch, pen, and keyboard
+input are supported (arrow keys, Page Up/Down, Home/End). The dial does not intercept
+mouse-wheel scrolling. Existing configuration, five-percent steps, and the disabled
+dial when the appliance is off or unavailable are unchanged.
+The colored arc fills from the left-hand minimum toward the handle for both
+humidifiers and dehumidifiers.
+
+Mode colors accept both lowercase and title-case mode names. They follow theme
+colors with built-in fallbacks; older overrides such as
+`--state-climate-manual-color` and `--state-climate-eco-color` remain supported.
+
 ### Troubleshooting
 
 PS : If you do not see the filter and defrost entities, it's because they're disabled by default on the integration, to enable them
@@ -156,6 +171,10 @@ inside the container.
 
 To exercise all demo entity references and the card's service calls, run
 `.venv/bin/python .devcontainer/test_demo.py` inside the container.
+
+Run `npm test` for bundled-slider registration, pointer/keyboard behavior, card
+bindings, and mode-class regression tests (no running Home Assistant required).
+Run `npm run build` to lint and build the card.
 
 ## Screenshots
 

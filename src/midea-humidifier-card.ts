@@ -34,7 +34,6 @@ import {
   mdiPowerCycle,
   mdiSnowflakeMelt
 } from "@mdi/js";
-// import "@thomasloven/round-slider";
 import { HassEntity, STATE_NOT_RUNNING } from "home-assistant-js-websocket";
 import { localize } from "./localize/localize";
 import {
@@ -55,7 +54,6 @@ import {
   applyThemesOnElement,
   fireEvent, 
   EntityConfig, 
-  computeRTLDirection, 
   computeDomain,  
 } from 'custom-card-helpers';
 
@@ -71,6 +69,7 @@ import {
 } from "./humidifier";
 
 import { LovelaceRowConfig, HumidifierCardConfig, ProblemConfig } from "./types"
+import "./midea-humidity-slider";
 
 // Re-imported stuff from original humidifier card into custom card
 const arrayFilter = (
@@ -344,6 +343,8 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
 
   @state() private _targetHumidity?: number;
 
+  @state() private _previewHumidity?: number;
+
   @state() private _currentHumidity?: number;
 
   public getCardSize(): number {
@@ -551,32 +552,25 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
       computeStateName(this.hass!.states[this._config!.entity]);
 
     const targetHumidity =
-      stateObj.attributes.humidity !== null &&
-      Number.isFinite(Number(stateObj.attributes.humidity))
+      stateObj.attributes.humidity != null &&
+      Number.isFinite(stateObj.attributes.humidity)
         ? stateObj.attributes.humidity
-        : stateObj.attributes.min_humidity;
+        : stateObj.attributes.min_humidity ?? 0;
 
-    const rtlDirection = computeRTLDirection(this.hass);
     const sliderDisabled = (UNAVAILABLE_STATES.includes(stateObj.state) || isPoweredOff)
+    const displayedTargetHumidity = this._previewHumidity ?? this._targetHumidity;
 
-    const slider = sliderDisabled
-      ? html` 
-          <round-slider 
-            .min=${stateObj!.attributes.min_humidity || 0} 
-            .max=${stateObj!.attributes.max_humidity || 100} 
-            .value=${targetHumidity} 
-            disabled="true">
-          </round-slider>`
-      : html`
-          <round-slider
-            .value=${targetHumidity}
-            .min=${stateObj.attributes.min_humidity || 0}
-            .max=${stateObj.attributes.max_humidity || 100}           
-            .rtl=${rtlDirection === "rtl"}
-            step="5"
+    const slider = html`
+          <midea-humidity-slider
+            .value=${this._targetHumidity ?? targetHumidity}
+            .min=${stateObj.attributes.min_humidity ?? 0}
+            .max=${stateObj.attributes.max_humidity ?? 100}
+            .step=${5}
+            .disabled=${sliderDisabled}
+            .label=${name}
             @value-changing=${this._dragEvent}
             @value-changed=${this._setTargetHumidity}>
-          </round-slider>
+          </midea-humidity-slider>
         `;   
 
     const targetHumiditySvg = svg`
@@ -588,8 +582,8 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
           text-anchor="middle"
           style="font-size: 13px;"
         >
-          ${this._targetHumidity && !isNaN(this._targetHumidity) ?
-            svg`${swapTargetAndCurrent ? html`${this._currentHumidity?.toFixed()}` : html`${this._targetHumidity.toFixed()}`}
+          ${displayedTargetHumidity !== undefined && !isNaN(displayedTargetHumidity) ?
+            svg`${swapTargetAndCurrent ? html`${this._currentHumidity?.toFixed()}` : html`${displayedTargetHumidity.toFixed()}`}
               <tspan dx="-3" dy="-6.5" style="font-size: 4px;">
                 %
               </tspan>
@@ -612,7 +606,7 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
             this._currentHumidity === null
               ? ""
               : svg`
-                    ${swapTargetAndCurrent ? this._targetHumidity?.toFixed() : this._currentHumidity.toFixed()}% - ${currentTemperatureString ? currentTemperature : ""}${unitOfMeasurement}
+                    ${swapTargetAndCurrent ? displayedTargetHumidity?.toFixed() : this._currentHumidity.toFixed()}% - ${currentTemperatureString ? currentTemperature : ""}${unitOfMeasurement}
                     `
           }
         </text>
@@ -649,7 +643,7 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
     return html`
       <ha-card
         class=${classMap({
-      [hasIssues ? 'error' : currentMode]: true,
+      [hasIssues ? 'error' : isPoweredOff ? 'off' : this._lower(currentMode)]: true,
     })}
       >
         <ha-icon-button
@@ -708,7 +702,10 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
   }
 
   protected shouldUpdate(changedProps: PropertyValues): boolean {
-    return hasConfigOrEntitiesChanged(this, changedProps);
+    return changedProps.has("_targetHumidity") ||
+      changedProps.has("_previewHumidity") ||
+      changedProps.has("_currentHumidity") ||
+      hasConfigOrEntitiesChanged(this, changedProps);
   }
 
   protected updated(changedProps: PropertyValues): void {
@@ -773,6 +770,7 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
 
     if (!oldHass || oldHass.states[this._config.entity] !== stateObj) {
       this._targetHumidity = this._getTargetHumidity(stateObj);
+      this._previewHumidity = undefined;
     }
 
     if (!oldHass || oldHass.states[this._config.humidity_entity] !== stateObj) {
@@ -816,13 +814,13 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
     return stateObj.attributes.humidity;
   }
 
-  private _dragEvent(e): void {    
-    this._targetHumidity = e.detail.value;
-    //// console.warn(`[${CARD_NAME}::_dragEvent]: returning ${this._targetHumidity}`)
+  private _dragEvent(e: CustomEvent<{ value?: number }>): void {
+    this._previewHumidity = e.detail.value;
   }
 
-  private _setTargetHumidity(e): void {
-    //// console.warn(`[${CARD_NAME}::_targetHumidityidity]: setting ${e.detail.value} - this._targetHumidity: ${this._targetHumidity}`)
+  private _setTargetHumidity(e: CustomEvent<{ value: number }>): void {
+    this._previewHumidity = undefined;
+    this._targetHumidity = e.detail.value;
     this.hass!.callService("humidifier", "set_humidity", {
       entity_id: this._config!.entity,
       humidity: e.detail.value,
@@ -858,26 +856,26 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
         --brightness-font-size: 1.2rem;
         --rail-border-color: transparent;
       }     
-      .Off {
-        --mode-color: var(--state-climate-idle-color);
+      .off {
+        --mode-color: var(--state-climate-idle-color, var(--disabled-text-color, #9e9e9e));
       }
-      .Dry {
-        --mode-color: var(--state-climate-heat-color);
+      .dry {
+        --mode-color: var(--state-climate-heat-color, var(--orange-color, #ff9800));
       }
-      .Smart {
-        --mode-color: var(--state-climate-cool-color);
+      .smart {
+        --mode-color: var(--state-climate-cool-color, var(--blue-color, #2196f3));
       }
-      .Continuous {
-        --mode-color: var(--state-climate-eco-color);
+      .continuous {
+        --mode-color: var(--state-climate-eco-color, var(--green-color, #4caf50));
       }
-      .Set {
-        --mode-color: var(--state-climate-manual-color);
+      .set {
+        --mode-color: var(--state-climate-manual-color, var(--state-humidifier-on-color, var(--primary-color, #03a9f4)));
       }
       .unknown-mode {
-        --mode-color: var(--state-unknown-color);
+        --mode-color: var(--state-unknown-color, var(--disabled-text-color, #9e9e9e));
       }
       .error {
-        --mode-color: var(--error-color);
+        --mode-color: var(--error-color, #db4437);
       }
 
       .more-info {
@@ -912,9 +910,10 @@ export class MideaHumidifierCard extends LitElement implements LovelaceCard {
         min-width: 100px;
       }
 
-      round-slider {
-        --round-slider-path-color: var(--slider-track-color);
-        --round-slider-bar-color: var(--mode-color);
+      midea-humidity-slider {
+        --midea-slider-track-color: var(--slider-track-color, var(--divider-color, #bdbdbd));
+        --midea-slider-color: var(--mode-color);
+        width: 100%;
         padding-bottom: 10%;
       }
 
@@ -994,5 +993,3 @@ declare global {
     [CARD_NAME]: MideaHumidifierCard;
   }
 }
-
-
